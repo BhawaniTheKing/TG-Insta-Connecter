@@ -10,32 +10,34 @@ Telegram_Token = "8677114145:AAFeHE3zjzDj19ET1bpTejBS9EXdR5WPaGM"
 Target_Group_Id = -1003830400479
 User_Database_Path = "Users_Registry.json"
 
-# --- TERI HARDCODED STRING ---
-# Maine ise yahan direct paste kar diya hai
-RAW_SESSION = "eyJ1dWlkcyI6IHsicGhvbmVfaWQiOiAiYXV0byIsICJ1dWlkIjogImF1dG8iLCAiY2xpZW50X2FkX2lkIjogImF1dG8iLCAiYWR2ZXJ0aXNpbmdfaWQiOiAiYXV0byJ9LCAiY29va2llcyI6IHsic2Vzc2lvbmlkIjogIjQ0OTMyOTc4ODMzJTNBS3hmM0puMXl6Sk1qdXQlM0EyNyUzQUFZalVPZEpBU2NyUkM4eGlqaDhXMEthV1lPeVQ1cXBpRE5MZWVveHpldyJ9LCAibGFzdF9sb2dpbiI6IDAsICJkZXZpY2Vfc2V0dGluZ3MiOiB7ImFwcF92ZXJzaW9uIjogIjI2OS4wLjAuMTguNzUiLCAiYW5kcm9pZF92ZXJzaW9uIjogMjYsICJhbmRyb2lkX3JlbGVhc2UiOiAiOC4wLjAiLCAiZGV2aWNlIjogIk9uZVBsdXMgNlQifSwgInVzZXJfYWdlbnQiOiAiSW5zdGFncmFtIDI2OS4wLjAuMTguNzUgQW5kcm9pZCAoMjYvOC4wLjA7IDQ4MGRwaTsgMTA4MHgyMjYwOyBPbmVQbHVzOyBPTkVQTFVTIEE2MDEzOyBmdWppOyBxY29tOyBlbl9VUzsgNDQzNDE5MDgyKSJ9"
-
 Ig_Bot = Client()
 
 def Handle_Instagram_Login():
+    # Bhai, yahan maine direct tumhari session details dadi hain
+    # Ab JSON decoding ka koi error aa hi nahi sakta
+    FIXED_SETTINGS = {
+        "uuids": {"phone_id": "auto", "uuid": "auto", "client_ad_id": "auto", "advertising_id": "auto"},
+        "cookies": {
+            "sessionid": "44932978833%3AKxf3Jn1yzJMjut%3A27%3AAYjUOdJAScrRC8xijh8W0KaWYOyT5qpiDNLeeoxzew"
+        },
+        "last_login": 0,
+        "device_settings": {
+            "app_version": "269.0.0.18.75",
+            "android_version": 26,
+            "android_release": "8.0.0",
+            "device": "OnePlus 6T"
+        },
+        "user_agent": "Instagram 269.0.0.18.75 Android (26/8.0.0; 480dpi; 1080x2260; OnePlus; ONEPLUS A6013; fuji; qcom; en_US; 443419082)"
+    }
+    
     try:
-        # String Cleaning (Extra protection)
-        clean_str = RAW_SESSION.strip().replace('"', '').replace("'", "")
-        
-        # Auto-Padding Fix (Jo tune bola tha == wala chakkar)
-        missing_padding = len(clean_str) % 4
-        if missing_padding:
-            clean_str += '=' * (4 - missing_padding)
-            
-        # Decode and Apply
-        decoded = base64.b64decode(clean_str).decode('utf-8')
-        settings = json.loads(decoded)
-        Ig_Bot.set_settings(settings)
-        
-        # Check if actually working
+        # Settings apply karo bina kisi decoding ke
+        Ig_Bot.set_settings(FIXED_SETTINGS)
+        # Verify karne ke liye timeline check karo
         Ig_Bot.get_timeline_feed() 
-        print("✅ System Alert: Instagram Online (Hardcoded Session).")
+        print("✅ System Alert: Instagram Online (Direct Session Linked).")
     except Exception as e:
-        print(f"❌ System Error: Hardcoded Login Failed -> {e}")
+        print(f"❌ System Error: Session Login Failed -> {e}")
 
 # --- Database Logic ---
 def Fetch_Registry():
@@ -65,11 +67,9 @@ async def Verification_Handler(Update: Update, Context: ContextTypes.DEFAULT_TYP
     text = Update.message.text.strip()
     
     if uid not in Registry:
-        # Strict Filtering: Fake names block
         if len(text) < 3 or text.lower() in ["hi", "hello", "bc", "hey", "hii"]:
             await Update.message.reply_text("❌ Invalid Name. Please provide your real Full Name.")
             return
-
         Registry[uid] = {"Name": text, "Time": str(datetime.now())}
         Save_Registry(Registry)
         await Update.message.reply_text(f"✅ Identity Verified: {text}")
@@ -82,7 +82,7 @@ async def Instagram_Monitor_Engine(App: Application):
         try:
             Inbox = Ig_Bot.direct_threads()
             if not Inbox:
-                await asyncio.sleep(30); continue
+                await asyncio.sleep(40); continue
               
             Msg = Inbox[0].messages[0]
             if Msg.id != Last_Id and (Msg.clip or Msg.media):
@@ -114,7 +114,6 @@ async def Main_System_Boot():
     async with App:
         await App.initialize()
         await App.start()
-        # Clean conflict at start
         await App.updater.start_polling(drop_pending_updates=True)
         print("🤖 Telegram Bot Synchronized.")
         await Instagram_Monitor_Engine(App)
