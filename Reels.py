@@ -8,7 +8,6 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 Instagram_Username = "satya.dynasty"
-Instagram_Password = "Kaka9090"
 Telegram_Token = "8677114145:AAFeHE3zjzDj19ET1bpTejBS9EXdR5WPaGM"
 Target_Group_Id = -1003830400479
 User_Database_Path = "Users_Registry.json"
