@@ -13,8 +13,7 @@ User_Database_Path = "Users_Registry.json"
 Ig_Bot = Client()
 
 def Handle_Instagram_Login():
-    # Bhai, yahan maine direct tumhari session details dadi hain
-    # Ab JSON decoding ka koi error aa hi nahi sakta
+    # Direct Dictionary: Isme ab koi json.loads() nahi hai, toh yahan se error nahi aa sakta
     FIXED_SETTINGS = {
         "uuids": {"phone_id": "auto", "uuid": "auto", "client_ad_id": "auto", "advertising_id": "auto"},
         "cookies": {
@@ -22,34 +21,36 @@ def Handle_Instagram_Login():
         },
         "last_login": 0,
         "device_settings": {
-            "app_version": "269.0.0.18.75",
-            "android_version": 26,
-            "android_release": "8.0.0",
-            "device": "OnePlus 6T"
+            "app_version": "269.0.0.18.75", "android_version": 26, "android_release": "8.0.0", "device": "OnePlus 6T"
         },
         "user_agent": "Instagram 269.0.0.18.75 Android (26/8.0.0; 480dpi; 1080x2260; OnePlus; ONEPLUS A6013; fuji; qcom; en_US; 443419082)"
     }
-    
     try:
-        # Settings apply karo bina kisi decoding ke
         Ig_Bot.set_settings(FIXED_SETTINGS)
-        # Verify karne ke liye timeline check karo
         Ig_Bot.get_timeline_feed() 
-        print("✅ System Alert: Instagram Online (Direct Session Linked).")
+        print("✅ System Alert: Instagram Online.")
     except Exception as e:
-        print(f"❌ System Error: Session Login Failed -> {e}")
+        print(f"❌ System Error: Instagram Session Issue -> {e}")
 
-# --- Database Logic ---
+# --- FIX: Safe Database Logic ---
 def Fetch_Registry():
-    if os.path.exists(User_Database_Path):
-        try:
-            with open(User_Database_Path, "r") as f: return json.load(f)
-        except: return {}
-    return {}
+    if not os.path.exists(User_Database_Path):
+        return {}
+    try:
+        with open(User_Database_Path, "r") as f:
+            content = f.read().strip()
+            if not content: # Agar file khali hai
+                return {}
+            return json.loads(content)
+    except Exception as e:
+        print(f"⚠️ Registry Corrupt, Resetting: {e}")
+        return {}
 
 def Save_Registry(Data):
-    with open(User_Database_Path, "w") as f: json.dump(Data, f, indent=4)
+    with open(User_Database_Path, "w") as f:
+        json.dump(Data, f, indent=4)
 
+# Load registry safely
 Registry = Fetch_Registry()
 
 # --- Telegram Handlers ---
@@ -98,9 +99,9 @@ async def Instagram_Monitor_Engine(App: Application):
                     await App.bot.send_video(
                         chat_id=Target_Group_Id,
                         video=V,
-                        caption=f"🔱 Source: Instagram DM\n👤 Agent: {sender}\n⏰ {datetime.now().strftime('%H:%M:%S')}"
+                        caption=f"🔱 Source: Instagram DM\n👤 Agent: {sender}"
                     )
-                os.remove(Path)
+                if os.path.exists(Path): os.remove(Path)
                 Last_Id = Msg.id
             await asyncio.sleep(40)
         except Exception: await asyncio.sleep(60)
