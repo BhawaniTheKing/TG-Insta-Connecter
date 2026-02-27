@@ -13,113 +13,107 @@ User_Database_Path = "Users_Registry.json"
 Ig_Bot = Client()
 
 def Handle_Instagram_Login():
-    # Railway Variables se Session String uthayega
     Session_String = os.getenv("INSTA_SESSION_STRING")
-    
     if not Session_String:
-        print("System Error: INSTA_SESSION_STRING Variable Missing In Railway!")
+        print("System Error: INSTA_SESSION_STRING Missing!")
         return
-
     try:
         # Decode and Load Settings
         Decoded_Data = base64.b64decode(Session_String).decode('utf-8')
         Settings = json.loads(Decoded_Data)
         Ig_Bot.set_settings(Settings)
         
-        # Login using only session (No Password Required)
-        Ig_Bot.login(Instagram_Username, "") 
-        print("System Alert: Instagram Online via Session String (No Password).")
-        
+        # Force login via session only
+        Ig_Bot.get_timeline_feed() # Token test karne ke liye
+        print("System Alert: Instagram Online via Session.")
     except Exception as Error:
-        print(f"System Error: Session Failed -> {Error}")
-        print("Tip: Browser se nayi Session ID nikalo aur Base64 string update karo.")
+        print(f"System Error: Session Expired or Invalid -> {Error}")
 
-# --- Database Functions ---
-def Fetch_Local_Database():
+# --- Database Logic (Cleaned) ---
+def Fetch_Registry():
     if os.path.exists(User_Database_Path):
-        with open(User_Database_Path, "r") as Data_File: return json.load(Data_File)
+        with open(User_Database_Path, "r") as f: return json.load(f)
     return {}
 
-def Commit_To_Database(Data):
-    with open(User_Database_Path, "w") as Data_File: json.dump(Data, Data_File, indent=4)
+def Save_Registry(Data):
+    with open(User_Database_Path, "w") as f: json.dump(Data, f, indent=4)
 
-Registry = Fetch_Local_Database()
+# Purana kachra delete karne ke liye registry reset (sirf ek baar manual kar sakte ho)
+Registry = Fetch_Registry()
 
 # --- Telegram Handlers ---
 async def Start_Command(Update: Update, Context: ContextTypes.DEFAULT_TYPE):
+    # Sirf Private DM mein kaam karega
+    if Update.effective_chat.type != "private": return
+    
     User_Id = str(Update.effective_user.id)
     if User_Id not in Registry:
-        await Update.message.reply_text("System Online. Access Restricted. Send Your Full Name.")
+        await Update.message.reply_text("🔱 Satya Dynasty Security System\n\nPlease send your Full Name to verify identity.")
     else:
-        await Update.message.reply_text(f"Access Granted. Hello {Registry[User_Id]['Name']}.")
+        await Update.message.reply_text(f"Welcome back, {Registry[User_Id]['Name']}. System is monitoring DMs.")
 
-async def Registration_Handler(Update: Update, Context: ContextTypes.DEFAULT_TYPE):
+async def Verification_Handler(Update: Update, Context: ContextTypes.DEFAULT_TYPE):
+    # Sirf Private DM mein aur non-verified users ke liye
+    if Update.effective_chat.type != "private": return
+    
     User_Id = str(Update.effective_user.id)
+    User_Text = Update.message.text
+    
     if User_Id not in Registry:
-        Registry[User_Id] = {"Name": Update.message.text, "Time": str(datetime.now())}
-        Commit_To_Database(Registry)
-        await Update.message.reply_text("Verification Complete. You can now use the bot.")
+        # Simple validation: Naam kam se kam 3 word ka ho aur "Hi/Hello" na ho
+        if len(User_Text.strip()) < 3 or User_Text.lower() in ["hi", "hello", "bc", "hey"]:
+            await Update.message.reply_text("Invalid Name. Please enter your real Full Name.")
+            return
+
+        Registry[User_Id] = {"Name": User_Text, "Time": str(datetime.now())}
+        Save_Registry(Registry)
+        await Update.message.reply_text(f"✅ Identity Verified: {User_Text}.\nYou can now share reels in Instagram DM.")
 
 # --- Monitoring Engine ---
 async def Instagram_Monitor_Engine(App: Application):
     Last_Id = None
-    print("System Alert: Intelligence Engine Is Active.")
-    
+    print("Intelligence Engine: Scanning DMs...")
     while True:
         try:
             Inbox = Ig_Bot.direct_threads()
             if not Inbox:
-                await asyncio.sleep(45)
-                continue
+                await asyncio.sleep(45); continue
               
             Msg = Inbox[0].messages[0]
-            
-            if Msg.id != Last_Id:
-                if Msg.clip or Msg.media:
-                    print(f"New Reel Detected from {Msg.user_id}!")
-                    
-                    Media_Pk = Msg.clip.pk if Msg.clip else Msg.media.pk
-                    Path = Ig_Bot.video_download(Media_Pk, folder="Downloads")
-                    
-                    # Fetch User Info Safely
-                    try:
-                        User_Info = Ig_Bot.user_info(Msg.user_id)
-                        Sender = User_Info.full_name or User_Info.username
-                    except:
-                        Sender = "Unknown Agent"
-                    
-                    with open(Path, "rb") as Video:
-                        await App.bot.send_video(
-                            chat_id=Target_Group_Id,
-                            video=Video,
-                            caption=f"Source: Instagram DM\nAgent: {Sender}\nTime: {datetime.now().strftime('%H:%M:%S')}"
-                        )
-                    
-                    os.remove(Path)
-                    print("System Alert: Reel Sent Successfully.")
-                    
+            if Msg.id != Last_Id and (Msg.clip or Msg.media):
+                Media_Pk = Msg.clip.pk if Msg.clip else Msg.media.pk
+                Path = Ig_Bot.video_download(Media_Pk, folder="Downloads")
+                
+                # Sender Info fetch
+                try: 
+                    info = Ig_Bot.user_info(Msg.user_id)
+                    sender = info.full_name or info.username
+                except: sender = "Unknown"
+                
+                with open(Path, "rb") as Video:
+                    await App.bot.send_video(
+                        chat_id=Target_Group_Id,
+                        video=Video,
+                        caption=f"🔱 Source: Instagram DM\n👤 Agent: {sender}\n⏰ {datetime.now().strftime('%H:%M:%S')}"
+                    )
+                os.remove(Path)
                 Last_Id = Msg.id
-            
             await asyncio.sleep(45)
-            
-        except Exception as E:
-            # Silent error to avoid log spamming
-            await asyncio.sleep(60)
+        except Exception: await asyncio.sleep(60)
 
-# --- Boot Sequence ---
 async def Main_System_Boot():
     Handle_Instagram_Login()
-    
     App = Application.builder().token(Telegram_Token).build()
+    
+    # Handlers
     App.add_handler(CommandHandler("start", Start_Command))
-    App.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, Registration_Handler))
+    # Ye sirf Private DM ke text ko pakdega
+    App.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & ~filters.COMMAND, Verification_Handler))
     
     async with App:
         await App.initialize()
         await App.start()
-        # Conflict fix: Purane updates clear karega
         await App.updater.start_polling(drop_pending_updates=True)
-        print("System Alert: Telegram Services Synchronized.")
         await Instagram_Monitor_Engine(App)
 
 if __name__ == "__main__":
